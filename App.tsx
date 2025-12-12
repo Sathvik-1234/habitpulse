@@ -21,7 +21,9 @@ import {
   deleteDoc, 
   doc, 
   setDoc,
-  getDoc
+  getDoc,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 
 const AppContent = () => {
@@ -137,28 +139,33 @@ const AppContent = () => {
   const handleToggleHabit = async (habitId: string, dateStr: string) => {
     if (!currentUser) return;
     
+    // Determine current state for optimistic update
+    const isCompleted = logs[dateStr]?.includes(habitId);
+    
+    // 1. Optimistic Update (Update UI Immediately)
+    setLogs(prevLogs => {
+      const currentDayLogs = prevLogs[dateStr] || [];
+      const newDayLogs = isCompleted 
+        ? currentDayLogs.filter(id => id !== habitId) // Remove
+        : [...currentDayLogs, habitId];               // Add
+      
+      return { ...prevLogs, [dateStr]: newDayLogs };
+    });
+
+    // 2. Perform Backend Update
     const logRef = doc(db, 'users', currentUser.uid, 'logs', dateStr);
     
-    // Optimistic update for UI responsiveness could be done here, 
-    // but onSnapshot is usually fast enough.
-    
     try {
-      const docSnap = await getDoc(logRef);
-      if (docSnap.exists()) {
-        const currentCompleted = docSnap.data().completed || [];
-        const isCompleted = currentCompleted.includes(habitId);
-        let newCompleted;
-        if (isCompleted) {
-          newCompleted = currentCompleted.filter((id: string) => id !== habitId);
-        } else {
-          newCompleted = [...currentCompleted, habitId];
-        }
-        await setDoc(logRef, { completed: newCompleted }, { merge: true });
+      if (isCompleted) {
+        // Remove from array
+        await setDoc(logRef, { completed: arrayRemove(habitId) }, { merge: true });
       } else {
-        await setDoc(logRef, { completed: [habitId] });
+        // Add to array (create doc if it doesn't exist)
+        await setDoc(logRef, { completed: arrayUnion(habitId) }, { merge: true });
       }
     } catch (e) {
       console.error("Error toggling habit:", e);
+      // Optional: Revert optimistic update here if needed, but onSnapshot usually syncs it back
     }
   };
 
@@ -188,9 +195,11 @@ const AppContent = () => {
       try {
         await deleteDoc(doc(db, 'users', currentUser.uid, 'habits', habitToDelete));
         if (selectedHabitId === habitToDelete) setSelectedHabitId(null);
-        setHabitToDelete(null);
       } catch (e) {
         console.error("Error deleting habit:", e);
+      } finally {
+        // ALWAYS close the modal, even if error occurs
+        setHabitToDelete(null);
       }
     }
   };

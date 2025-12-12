@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Calendar, Tag, Sparkles, Trophy } from 'lucide-react';
+import { Save, Calendar, Tag, Sparkles, Trophy, Trash2 } from 'lucide-react';
 import { Habit, HabitLogs, JournalEntry } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 
 interface JournalProps {
   habits: Habit[];
@@ -80,6 +80,17 @@ export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
     } catch (e) {
       console.error("Error saving journal entry:", e);
       alert("Failed to save entry. Please try again.");
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!currentUser) return;
+    if (window.confirm("Are you sure you want to delete this entry?")) {
+      try {
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'journal_entries', entryId));
+      } catch (e) {
+        console.error("Error deleting entry:", e);
+      }
     }
   };
 
@@ -202,18 +213,29 @@ export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
                   )}
 
                   {/* Header */}
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl bg-slate-800 border border-slate-700 ${moodConfig?.color.replace('bg-', 'bg-opacity-10 ')}`}>
-                      {moodConfig?.emoji}
-                    </div>
-                    <div>
-                      <h3 className="text-white font-semibold">
-                        {new Date(entry.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-                      </h3>
-                      <div className="flex gap-2 text-xs text-slate-500">
-                        {entry.mood}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl bg-slate-800 border border-slate-700 ${moodConfig?.color.replace('bg-', 'bg-opacity-10 ')}`}>
+                        {moodConfig?.emoji}
+                      </div>
+                      <div>
+                        <h3 className="text-white font-semibold">
+                          {new Date(entry.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                        </h3>
+                        <div className="flex gap-2 text-xs text-slate-500">
+                          {entry.mood}
+                        </div>
                       </div>
                     </div>
+
+                    {/* Delete Button */}
+                    <button 
+                      onClick={() => handleDeleteEntry(entry.id)}
+                      className="p-2 text-slate-600 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+                      title="Delete Entry"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
 
                   {/* Content */}
