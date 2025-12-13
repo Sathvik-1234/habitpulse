@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Habit, HabitLogs, MonthlyStats } from './types';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { MonthlyStats } from './types';
 import { Sidebar } from './components/Sidebar';
 import { HabitGrid } from './components/HabitGrid';
 import { VisualizationPanel } from './components/VisualizationPanel';
@@ -8,31 +8,14 @@ import { Journal } from './components/Journal';
 import { Settings } from './components/Settings';
 import { AddHabitModal } from './components/AddHabitModal';
 import { ConfirmModal } from './components/ConfirmModal';
-import { LoginPage } from './components/LoginPage';
+import { WelcomeScreen } from './components/WelcomeScreen';
 import { getProgressInsight } from './services/geminiService';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { db } from './firebase';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  setDoc,
-  getDoc,
-  arrayUnion,
-  arrayRemove
-} from 'firebase/firestore';
+import { LocalProvider, useLocalContext } from './context/LocalContext';
 
 const AppContent = () => {
-  const { currentUser } = useAuth();
+  const { userName, habits, logs, addHabit, deleteHabit } = useLocalContext();
   const [currentDate, setCurrentDate] = useState(new Date());
-  
-  // Data State from Firestore
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [logs, setLogs] = useState<HabitLogs>({});
   
   const [view, setView] = useState('DASHBOARD');
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
@@ -43,38 +26,6 @@ const AppContent = () => {
   
   const [aiInsight, setAiInsight] = useState<{ message: string; tone: string } | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
-
-  // 1. Fetch Habits from Firestore
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const q = query(collection(db, 'users', currentUser.uid, 'habits'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedHabits: Habit[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Habit));
-      setHabits(fetchedHabits);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser]);
-
-  // 2. Fetch Logs from Firestore
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const q = query(collection(db, 'users', currentUser.uid, 'logs'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedLogs: HabitLogs = {};
-      snapshot.docs.forEach(doc => {
-        fetchedLogs[doc.id] = doc.data().completed || [];
-      });
-      setLogs(fetchedLogs);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser]);
 
   // Statistics Calculation
   const stats: MonthlyStats = useMemo(() => {
@@ -135,75 +86,6 @@ const AppContent = () => {
     }
   }, [habits, logs]); 
 
-  // Handlers
-  const handleToggleHabit = async (habitId: string, dateStr: string) => {
-    if (!currentUser) return;
-    
-    // Determine current state for optimistic update
-    const isCompleted = logs[dateStr]?.includes(habitId);
-    
-    // 1. Optimistic Update (Update UI Immediately)
-    setLogs(prevLogs => {
-      const currentDayLogs = prevLogs[dateStr] || [];
-      const newDayLogs = isCompleted 
-        ? currentDayLogs.filter(id => id !== habitId) // Remove
-        : [...currentDayLogs, habitId];               // Add
-      
-      return { ...prevLogs, [dateStr]: newDayLogs };
-    });
-
-    // 2. Perform Backend Update
-    const logRef = doc(db, 'users', currentUser.uid, 'logs', dateStr);
-    
-    try {
-      if (isCompleted) {
-        // Remove from array
-        await setDoc(logRef, { completed: arrayRemove(habitId) }, { merge: true });
-      } else {
-        // Add to array (create doc if it doesn't exist)
-        await setDoc(logRef, { completed: arrayUnion(habitId) }, { merge: true });
-      }
-    } catch (e) {
-      console.error("Error toggling habit:", e);
-      // Optional: Revert optimistic update here if needed, but onSnapshot usually syncs it back
-    }
-  };
-
-  const handleAddHabit = () => {
-    setIsAddModalOpen(true);
-  };
-
-  const confirmAddHabit = async (name: string, category: string) => {
-    if (!currentUser) return;
-    try {
-      await addDoc(collection(db, 'users', currentUser.uid, 'habits'), {
-        name,
-        category,
-        createdAt: new Date()
-      });
-    } catch (e) {
-      console.error("Error adding habit:", e);
-    }
-  };
-
-  const handleDeleteHabit = (id: string) => {
-    setHabitToDelete(id);
-  };
-
-  const confirmDeleteHabit = async () => {
-    if (habitToDelete && currentUser) {
-      try {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'habits', habitToDelete));
-        if (selectedHabitId === habitToDelete) setSelectedHabitId(null);
-      } catch (e) {
-        console.error("Error deleting habit:", e);
-      } finally {
-        // ALWAYS close the modal, even if error occurs
-        setHabitToDelete(null);
-      }
-    }
-  };
-
   const changeMonth = (offset: number) => {
     setCurrentDate(prev => {
       const newDate = new Date(prev);
@@ -213,10 +95,21 @@ const AppContent = () => {
     setAiInsight(null); 
   };
 
+  const handleConfirmDeleteHabit = () => {
+    if (habitToDelete) {
+      deleteHabit(habitToDelete);
+      if (selectedHabitId === habitToDelete) {
+        setSelectedHabitId(null);
+      }
+      setHabitToDelete(null);
+    }
+  };
+
   const selectedHabit = habits.find(h => h.id === selectedHabitId);
 
-  if (!currentUser) {
-    return <LoginPage />;
+  // Flow Control
+  if (!userName) {
+    return <WelcomeScreen />;
   }
 
   return (
@@ -231,7 +124,7 @@ const AppContent = () => {
         {/* Header (Date Nav) */}
         <header className="h-16 flex items-center justify-between px-8 border-b border-slate-700 bg-surface/50 backdrop-blur-sm z-40 shrink-0">
            <h1 className="text-xl font-bold text-white tracking-wide">
-             {view === 'DASHBOARD' ? 'My Progress' : view === 'JOURNAL' ? 'Journal' : 'Settings'}
+             {view === 'DASHBOARD' ? `Welcome, ${userName}` : view === 'JOURNAL' ? 'Journal' : 'Settings'}
            </h1>
            
            {view === 'DASHBOARD' && (
@@ -258,14 +151,11 @@ const AppContent = () => {
               {/* Left Column (70%): Active Zone - Habit List */}
               <div className="lg:col-span-7 h-full min-h-0 flex flex-col">
                 <HabitGrid 
-                  habits={habits}
-                  logs={logs}
                   currentDate={currentDate}
                   selectedHabitId={selectedHabitId}
-                  onToggle={handleToggleHabit}
-                  onAddHabit={handleAddHabit}
-                  onDeleteHabit={handleDeleteHabit}
+                  onAddHabit={() => setIsAddModalOpen(true)}
                   onSelectHabit={setSelectedHabitId}
+                  onDeleteHabit={(id) => setHabitToDelete(id)}
                 />
               </div>
 
@@ -294,7 +184,7 @@ const AppContent = () => {
 
             </div>
           ) : view === 'JOURNAL' ? (
-            <Journal habits={habits} logs={logs} />
+            <Journal />
           ) : (
             <Settings />
           )}
@@ -303,14 +193,14 @@ const AppContent = () => {
           <AddHabitModal 
             isOpen={isAddModalOpen} 
             onClose={() => setIsAddModalOpen(false)} 
-            onAdd={confirmAddHabit} 
+            onAdd={addHabit} 
           />
 
           <ConfirmModal 
             isOpen={!!habitToDelete}
             title="Delete Habit?"
             message="This will permanently remove this habit and all its history. This action cannot be undone."
-            onConfirm={confirmDeleteHabit}
+            onConfirm={handleConfirmDeleteHabit}
             onCancel={() => setHabitToDelete(null)}
           />
 
@@ -322,8 +212,8 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
+    <LocalProvider>
       <AppContent />
-    </AuthProvider>
+    </LocalProvider>
   );
 }

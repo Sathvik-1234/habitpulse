@@ -1,14 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Save, Calendar, Tag, Sparkles, Trophy, Trash2 } from 'lucide-react';
-import { Habit, HabitLogs, JournalEntry } from '../types';
-import { useAuth } from '../context/AuthContext';
-import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
-
-interface JournalProps {
-  habits: Habit[];
-  logs: HabitLogs;
-}
+import { useLocalContext } from '../context/LocalContext';
 
 const MOODS = [
   { label: 'Great', emoji: '😁', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' },
@@ -20,36 +12,14 @@ const MOODS = [
 
 const TAGS = ['Busy', 'Sick', 'Travel', 'Rest Day', 'Energetic', 'Lazy', 'Focused'];
 
-export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
-  const { currentUser } = useAuth();
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-
+export const Journal: React.FC = () => {
+  const { journalEntries, addJournalEntry, deleteJournalEntry, habits, logs } = useLocalContext();
+  
   // Form State
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [mood, setMood] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [content, setContent] = useState('');
-
-  // Fetch Entries from Firestore
-  useEffect(() => {
-    if (!currentUser) return;
-    
-    // Using 'journal_entries' collection as requested
-    const q = query(
-      collection(db, 'users', currentUser.uid, 'journal_entries'), 
-      orderBy('date', 'desc')
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedEntries = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as JournalEntry[];
-      setEntries(fetchedEntries);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev => 
@@ -57,41 +27,18 @@ export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
     );
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!mood) {
       alert("Please select a mood!");
       return;
     }
-    if (!currentUser) return;
+    
+    addJournalEntry(mood, selectedTags, content, date);
 
-    try {
-      await addDoc(collection(db, 'users', currentUser.uid, 'journal_entries'), {
-        date,
-        mood,
-        tags: selectedTags,
-        content,
-        createdAt: new Date()
-      });
-
-      // Reset form partially
-      setContent('');
-      setMood('');
-      setSelectedTags([]);
-    } catch (e) {
-      console.error("Error saving journal entry:", e);
-      alert("Failed to save entry. Please try again.");
-    }
-  };
-
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!currentUser) return;
-    if (window.confirm("Are you sure you want to delete this entry?")) {
-      try {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'journal_entries', entryId));
-      } catch (e) {
-        console.error("Error deleting entry:", e);
-      }
-    }
+    // Reset form partially
+    setContent('');
+    setMood('');
+    setSelectedTags([]);
   };
 
   const isPerfectStreak = (dateStr: string) => {
@@ -164,14 +111,14 @@ export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
           </div>
         </div>
 
-        {/* Text Area */}
-        <div className="flex flex-col gap-2 flex-1 min-h-[150px]">
+        {/* Text Area - Enlarged */}
+        <div className="flex flex-col gap-2 flex-1 min-h-[300px]">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Highlight of the Day</label>
           <textarea 
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="What went well today? What was challenging?"
-            className="w-full h-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-slate-300 focus:ring-2 focus:ring-primary outline-none resize-none placeholder:text-slate-600 leading-relaxed"
+            className="w-full h-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-slate-300 focus:ring-2 focus:ring-primary outline-none resize-none placeholder:text-slate-600 leading-relaxed text-base"
           />
         </div>
 
@@ -192,13 +139,13 @@ export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
         </h2>
         
         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
-          {entries.length === 0 ? (
+          {journalEntries.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-500 italic">
               <span className="text-4xl mb-4">📖</span>
               No entries yet. Start writing your first one!
             </div>
           ) : (
-            entries.map((entry) => {
+            journalEntries.map((entry) => {
               const moodConfig = MOODS.find(m => m.label === entry.mood);
               const perfect = isPerfectStreak(entry.date);
               
@@ -230,8 +177,11 @@ export const Journal: React.FC<JournalProps> = ({ habits, logs }) => {
 
                     {/* Delete Button */}
                     <button 
-                      onClick={() => handleDeleteEntry(entry.id)}
-                      className="p-2 text-slate-600 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if(window.confirm("Delete this entry?")) deleteJournalEntry(entry.id);
+                      }}
+                      className="p-2 text-slate-600 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors z-10"
                       title="Delete Entry"
                     >
                       <Trash2 size={16} />

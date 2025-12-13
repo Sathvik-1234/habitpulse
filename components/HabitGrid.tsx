@@ -1,28 +1,23 @@
 import React, { useRef, useEffect } from 'react';
 import { Check, Trash2, ChevronRight, Plus } from 'lucide-react';
-import { Habit, HabitLogs } from '../types';
+import { useLocalContext } from '../context/LocalContext';
 
 interface HabitGridProps {
-  habits: Habit[];
-  logs: HabitLogs;
   currentDate: Date;
   selectedHabitId: string | null;
-  onToggle: (habitId: string, dateStr: string) => void;
   onAddHabit: () => void;
-  onDeleteHabit: (id: string) => void;
   onSelectHabit: (id: string) => void;
+  onDeleteHabit: (id: string) => void;
 }
 
 export const HabitGrid: React.FC<HabitGridProps> = ({
-  habits,
-  logs,
   currentDate,
   selectedHabitId,
-  onToggle,
   onAddHabit,
-  onDeleteHabit,
-  onSelectHabit
+  onSelectHabit,
+  onDeleteHabit
 }) => {
+  const { habits, logs, toggleHabit } = useLocalContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Calculate days in the month
@@ -98,8 +93,11 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
               
               <div className="flex items-center gap-1">
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onDeleteHabit(habit.id); }}
-                  className="opacity-50 hover:opacity-100 text-slate-500 hover:text-danger transition-all p-2 rounded-md hover:bg-slate-700"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onDeleteHabit(habit.id); 
+                  }}
+                  className="opacity-50 hover:opacity-100 text-slate-500 hover:text-danger transition-all p-2 rounded-md hover:bg-slate-700 z-10"
                   title="Remove Habit"
                 >
                   <Trash2 size={16} />
@@ -156,7 +154,7 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
                       >
                         <button
                           disabled={isFuture}
-                          onClick={() => onToggle(habit.id, dateStr)}
+                          onClick={() => toggleHabit(habit.id, dateStr)}
                           className={`
                             w-6 h-6 rounded flex items-center justify-center transition-all duration-300
                             ${

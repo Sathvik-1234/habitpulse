@@ -1,6 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, BookOpen, Settings, LogOut } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { LayoutDashboard, BookOpen, Settings, RotateCcw } from 'lucide-react';
+import { useLocalContext } from '../context/LocalContext';
 
 interface SidebarProps {
   currentView: string;
@@ -8,7 +8,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => {
-  const { logOut } = useAuth();
+  const { clearData } = useLocalContext();
   
   const menuItems = [
     { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Dashboard' },
@@ -47,11 +47,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate }) => 
 
       <div className="p-4 border-t border-slate-700">
         <button 
-          onClick={logOut}
-          className="w-full flex items-center justify-center lg:justify-start p-2 text-slate-500 hover:text-slate-300 transition-colors"
+          onClick={clearData}
+          className="w-full flex items-center justify-center lg:justify-start p-2 text-slate-500 hover:text-danger transition-colors"
+          title="Reset All Data"
         >
-          <LogOut size={20} />
-          <span className="ml-3 text-sm font-medium hidden lg:block">Sign Out</span>
+          <RotateCcw size={20} />
+          <span className="ml-3 text-sm font-medium hidden lg:block">Reset Data</span>
         </button>
       </div>
     </div>
