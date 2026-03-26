@@ -4,29 +4,31 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="https://picsum.photos/32/32" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a">
-    <title>HabitPulse</title>
+    <meta name="theme-color" content="#050B14">
+    <title>Solo Leveling Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              background: '#0f172a', // slate-900
-              surface: '#1e293b', // slate-800
-              primary: '#3b82f6', // blue-500
-              accent: '#8b5cf6', // violet-500
-              success: '#10b981', // emerald-500
-              danger: '#ef4444', // red-500
+              background: '#050B14',
+              surface: '#0A192F',
+              primary: '#4D9FFF',
+              accent: '#8b5cf6',
+              success: '#10b981',
+              danger: '#ef4444',
+              border: '#1E3A8A'
             },
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+              sans: ['Roboto Condensed', 'sans-serif'],
+              display: ['Teko', 'sans-serif'],
             }
           }
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;700&family=Teko:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       /* Custom Scrollbar for the widget feel */
       ::-webkit-scrollbar {
@@ -34,17 +36,17 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #1e293b; 
+        background: #0A192F; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #475569; 
+        background: #1E3A8A; 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
+        background: #4D9FFF; 
       }
       body {
-        background-color: #020617;
+        background-color: #050B14;
         color: #f8fafc;
       }
     </style>
@@ -64,8 +66,10 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

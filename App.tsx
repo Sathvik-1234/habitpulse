@@ -1,20 +1,25 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { MonthlyStats } from './types';
 import { Sidebar } from './components/Sidebar';
+import { TopBar } from './components/TopBar';
+import { BottomNav } from './components/BottomNav';
+import { StatusView } from './components/StatusView';
+import { DailyTasksView } from './components/DailyTasksView';
 import { HabitGrid } from './components/HabitGrid';
 import { VisualizationPanel } from './components/VisualizationPanel';
 import { HabitDetail } from './components/HabitDetail';
 import { Journal } from './components/Journal';
-import { Settings } from './components/Settings';
+import { SyncSettings } from './components/SyncSettings';
 import { AddHabitModal } from './components/AddHabitModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { PenaltyZone } from './components/PenaltyZone';
 import { getProgressInsight } from './services/geminiService';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { LocalProvider, useLocalContext } from './context/LocalContext';
 
 const AppContent = () => {
-  const { userName, habits, logs, addHabit, deleteHabit } = useLocalContext();
+  const { userName, habits, logs, addHabit, deleteHabit, dailyState } = useLocalContext();
   const [currentDate, setCurrentDate] = useState(new Date());
   
   const [view, setView] = useState('DASHBOARD');
@@ -112,43 +117,41 @@ const AppContent = () => {
     return <WelcomeScreen />;
   }
 
+  if (dailyState.isPenaltyZone) {
+    return <PenaltyZone />;
+  }
+
   return (
-    <div className="flex h-screen bg-background text-slate-200 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-background text-slate-200 overflow-hidden font-sans">
       
-      {/* 1. Sidebar */}
-      <Sidebar currentView={view} onNavigate={setView} />
+      {/* Top Bar (Level, Name) */}
+      <TopBar />
 
-      {/* 2. Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-0 relative">
         
-        {/* Header (Date Nav) */}
-        <header className="h-16 flex items-center justify-between px-8 border-b border-slate-700 bg-surface/50 backdrop-blur-sm z-40 shrink-0">
-           <h1 className="text-xl font-bold text-white tracking-wide">
-             {view === 'DASHBOARD' ? `Welcome, ${userName}` : view === 'JOURNAL' ? 'Journal' : 'Settings'}
-           </h1>
-           
-           {view === 'DASHBOARD' && (
-             <div className="flex items-center gap-4 bg-slate-800/50 rounded-lg p-1">
-                <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-400 hover:text-white">
-                  <ChevronLeft size={18} />
-                </button>
-                <span className="text-sm font-semibold w-32 text-center text-white">
-                  {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </span>
-                <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-400 hover:text-white">
-                  <ChevronRight size={18} />
-                </button>
-             </div>
-           )}
-        </header>
-
-        {/* Dynamic Content */}
-        <main className="flex-1 overflow-hidden p-6 relative">
-          
-          {view === 'DASHBOARD' ? (
+        {view === 'STATUS' && <StatusView />}
+        {view === 'TASKS' && <DailyTasksView />}
+        
+        {view === 'DASHBOARD' && (
+          <div className="flex-1 flex flex-col p-4 overflow-y-auto">
+             <header className="h-16 flex items-center justify-between px-4 border-b border-slate-700 bg-surface/50 backdrop-blur-sm shrink-0 mb-4">
+               <h1 className="text-xl font-bold text-white tracking-wide">
+                 Dashboard
+               </h1>
+               <div className="flex items-center gap-4 bg-slate-800/50 rounded-lg p-1">
+                  <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-400 hover:text-white">
+                    <ChevronLeft size={18} />
+                  </button>
+                  <span className="text-sm font-semibold w-32 text-center text-white">
+                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-400 hover:text-white">
+                    <ChevronRight size={18} />
+                  </button>
+               </div>
+            </header>
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 h-full">
-              
-              {/* Left Column (70%): Active Zone - Habit List */}
               <div className="lg:col-span-7 h-full min-h-0 flex flex-col">
                 <HabitGrid 
                   currentDate={currentDate}
@@ -158,8 +161,6 @@ const AppContent = () => {
                   onDeleteHabit={(id) => setHabitToDelete(id)}
                 />
               </div>
-
-              {/* Right Column (30%): Insight Zone - Analytics Widgets */}
               <div className="lg:col-span-3 h-full min-h-0">
                 {selectedHabit ? (
                   <HabitDetail 
@@ -181,31 +182,32 @@ const AppContent = () => {
                   />
                 )}
               </div>
-
             </div>
-          ) : view === 'JOURNAL' ? (
-            <Journal />
-          ) : (
-            <Settings />
-          )}
+          </div>
+        )}
+        
+        {view === 'JOURNAL' && <Journal />}
+        {view === 'SETTINGS' && <SyncSettings />}
 
-          {/* Modals */}
-          <AddHabitModal 
-            isOpen={isAddModalOpen} 
-            onClose={() => setIsAddModalOpen(false)} 
-            onAdd={addHabit} 
-          />
-
-          <ConfirmModal 
-            isOpen={!!habitToDelete}
-            title="Delete Habit?"
-            message="This will permanently remove this habit and all its history. This action cannot be undone."
-            onConfirm={handleConfirmDeleteHabit}
-            onCancel={() => setHabitToDelete(null)}
-          />
-
-        </main>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNav currentView={view} onNavigate={setView} />
+
+      {/* Modals */}
+      <AddHabitModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)} 
+        onAdd={addHabit} 
+      />
+
+      <ConfirmModal 
+        isOpen={!!habitToDelete}
+        title="Delete Habit?"
+        message="This will permanently remove this habit and all its history. This action cannot be undone."
+        onConfirm={handleConfirmDeleteHabit}
+        onCancel={() => setHabitToDelete(null)}
+      />
     </div>
   );
 };
