@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Habit, HabitLogs, JournalEntry, PlayerStats, StreakState, DailyState } from '../types';
 import { getDailyQuests, calculateRequiredXP } from '../lib/system';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from './AuthContext';
 
 interface LocalContextType {
   userName: string;
@@ -10,6 +13,9 @@ interface LocalContextType {
   habits: Habit[];
   logs: HabitLogs;
   journalEntries: JournalEntry[];
+  isNewUser: boolean;
+  loadingData: boolean;
+  registerUser: (name: string) => Promise<void>;
   setUserName: (name: string) => void;
   addHabit: (name: string, category: string, goal?: number, unit?: string) => void;
   deleteHabit: (id: string) => void;
@@ -33,63 +39,119 @@ export const useLocalContext = () => {
   return context;
 };
 
-const STORAGE_KEY = 'habitpulse_data_v1';
+const defaultState = {
+  userName: '',
+  playerStats: {
+    level: 1,
+    xp: 0,
+    gold: 0,
+    rank: 'E',
+    playerClass: 'ASSASSIN',
+    title: 'WOLF SLAYER',
+    str: 10,
+    vit: 10,
+    agi: 10,
+    int: 10,
+    per: 10,
+    availablePoints: 0,
+    leaderboardPoints: 0,
+    physicalDamageReduction: 5,
+    magicalDamageReduction: 4,
+  },
+  streakState: {
+    currentStreak: 0,
+    longestStreak: 0,
+    perfectDaysTotal: 0
+  },
+  dailyState: {
+    date: new Date().toISOString().split('T')[0],
+    isPenaltyZone: false,
+    allCompleted: false
+  },
+  habits: [],
+  logs: {},
+  journalEntries: []
+};
 
 export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initial State Load
-  const loadState = () => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Ensure new fields exist for backward compatibility
-        if (parsed.playerStats.gold === undefined) parsed.playerStats.gold = 0;
-        if (!parsed.streakState) parsed.streakState = { currentStreak: 0, longestStreak: 0, perfectDaysTotal: 0 };
-        if (!parsed.dailyState) parsed.dailyState = { date: new Date().toISOString().split('T')[0], isPenaltyZone: false, allCompleted: false };
-        return parsed;
-      }
-    } catch (e) {
-      console.error("Failed to load data", e);
+  const { currentUser } = useAuth();
+  const [data, setData] = useState(defaultState);
+  const [loadingData, setLoadingData] = useState(true);
+  const [isNewUser, setIsNewUser] = useState(false);
+
+  // Initial State Load from Firestore
+  useEffect(() => {
+    if (!currentUser) {
+      setLoadingData(false);
+      setIsNewUser(false);
+      setData(defaultState);
+      return;
     }
-    return {
-      userName: '',
-      playerStats: {
-        level: 1,
-        xp: 0,
-        gold: 0,
-        rank: 'E',
-        playerClass: 'ASSASSIN',
-        title: 'WOLF SLAYER',
-        str: 10,
-        vit: 10,
-        agi: 10,
-        int: 10,
-        per: 10,
-        availablePoints: 0,
-        leaderboardPoints: 0,
-        physicalDamageReduction: 5,
-        magicalDamageReduction: 4,
-      },
-      streakState: {
-        currentStreak: 0,
-        longestStreak: 0,
-        perfectDaysTotal: 0
-      },
-      dailyState: {
-        date: new Date().toISOString().split('T')[0],
-        isPenaltyZone: false,
-        allCompleted: false
-      },
-      habits: [],
-      logs: {},
-      journalEntries: []
+
+    const loadData = async () => {
+      setLoadingData(true);
+      try {
+        const docRef = doc(db, 'users', currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const parsed = docSnap.data() as any;
+          // Ensure new fields exist for backward compatibility
+          if (parsed.playerStats?.gold === undefined) parsed.playerStats.gold = 0;
+          if (!parsed.streakState) parsed.streakState = { currentStreak: 0, longestStreak: 0, perfectDaysTotal: 0 };
+          if (!parsed.dailyState) parsed.dailyState = { date: new Date().toISOString().split('T')[0], isPenaltyZone: false, allCompleted: false };
+          
+          setData({
+            userName: parsed.userName || parsed.playerName || '',
+            playerStats: parsed.playerStats || defaultState.playerStats,
+            streakState: parsed.streakState || defaultState.streakState,
+            dailyState: parsed.dailyState || defaultState.dailyState,
+            habits: parsed.habits || [],
+            logs: parsed.logs || {},
+            journalEntries: parsed.journalEntries || []
+          });
+          setIsNewUser(false);
+        } else {
+          setIsNewUser(true);
+        }
+      } catch (e) {
+        console.error("Failed to load data from Firestore", e);
+      } finally {
+        setLoadingData(false);
+      }
     };
+
+    loadData();
+  }, [currentUser]);
+
+  const registerUser = async (name: string) => {
+    if (!currentUser) return;
+    const newState = {
+      ...defaultState,
+      userName: name,
+      playerName: name // For backward compatibility if needed
+    };
+    try {
+      await setDoc(doc(db, 'users', currentUser.uid), newState);
+      setData(newState);
+      setIsNewUser(false);
+    } catch (e) {
+      console.error("Failed to register user", e);
+      throw e;
+    }
   };
 
-  const [data, setData] = useState(loadState());
+  // Save on Change to Firestore
+  useEffect(() => {
+    if (currentUser && !isNewUser && !loadingData) {
+      setDoc(doc(db, 'users', currentUser.uid), data).catch(console.error);
+    }
+  }, [data, currentUser, isNewUser, loadingData]);
 
   // Midnight Check & Penalty Logic
   useEffect(() => {
+    if (!currentUser || isNewUser || loadingData) return;
+
     const checkMidnight = () => {
       const todayStr = new Date().toISOString().split('T')[0];
       
@@ -141,10 +203,12 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     checkMidnight();
     const interval = setInterval(checkMidnight, 60000); // Check every minute
     return () => clearInterval(interval);
-  }, []);
+  }, [currentUser, isNewUser, loadingData]);
 
   // Reminder Notification Logic
   useEffect(() => {
+    if (!currentUser || isNewUser || loadingData) return;
+
     const checkReminders = () => {
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
@@ -189,12 +253,7 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Check every minute
     const interval = setInterval(checkReminders, 60000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Save on Change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+  }, [currentUser, isNewUser, loadingData]);
 
   const setUserName = (name: string) => {
     setData(prev => ({ ...prev, userName: name }));
@@ -321,8 +380,7 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearData = () => {
     if(window.confirm("Are you sure you want to reset all data?")) {
-        localStorage.removeItem(STORAGE_KEY);
-        setData(loadState()); // Reset to initial state
+        setData(defaultState);
     }
   };
 
@@ -335,10 +393,8 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: new Date().toISOString()
     };
     try {
-      // Use TextEncoder to handle UTF-8 characters (emojis) correctly
       const jsonString = JSON.stringify(syncData);
       const bytes = new TextEncoder().encode(jsonString);
-      // Convert Uint8Array to binary string
       const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
       return btoa(binString);
     } catch (e) {
@@ -349,27 +405,17 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const importSyncCode = (code: string) => {
     try {
-      // Remove any whitespaces/newlines from copy-paste
       const cleanCode = code.replace(/\s/g, '');
-      
-      // Decode Base64 to binary string
       const binString = atob(cleanCode);
-      
-      // Convert binary string to Uint8Array
       const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
-      
-      // Decode UTF-8 bytes to JSON string
       const jsonString = new TextDecoder().decode(bytes);
-      
       const parsed = JSON.parse(jsonString);
       
-      // Validation: Ensure it's an object
       if (!parsed || typeof parsed !== 'object') {
         console.error("Import failed: Parsed data is not an object");
         return false;
       }
 
-      // Reconstruct state with fallbacks for safety
       const newData = {
           userName: typeof parsed.userName === 'string' ? parsed.userName : (data.userName || ''),
           playerStats: parsed.playerStats || data.playerStats,
@@ -381,7 +427,6 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       
       setData(newData);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
       return true;
     } catch (e) {
       console.error("Failed to import sync code:", e);
@@ -397,6 +442,9 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     habits: data.habits,
     logs: data.logs,
     journalEntries: data.journalEntries,
+    isNewUser,
+    loadingData,
+    registerUser,
     setUserName,
     addHabit,
     deleteHabit,

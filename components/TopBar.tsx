@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocalContext } from '../context/LocalContext';
 import { calculateRequiredXP } from '../lib/system';
+import { LogoutButton } from './LogoutButton';
 
 export const TopBar: React.FC = () => {
   const { userName, playerStats } = useLocalContext();
@@ -29,13 +30,16 @@ export const TopBar: React.FC = () => {
         </div>
       </div>
       
-      <div className="flex items-center gap-3">
-        <span className="text-white font-display text-2xl tracking-widest uppercase">{userName}</span>
-        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center relative overflow-hidden">
-          {/* A simple flame/soul icon placeholder */}
-          <div className="absolute inset-0 bg-red-500 opacity-50 blur-sm animate-pulse" />
-          <div className="w-4 h-4 bg-red-400 rounded-full shadow-[0_0_10px_red]" />
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
+          <span className="text-white font-display text-2xl tracking-widest uppercase hidden sm:inline">{userName}</span>
+          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center relative overflow-hidden">
+            {/* A simple flame/soul icon placeholder */}
+            <div className="absolute inset-0 bg-red-500 opacity-50 blur-sm animate-pulse" />
+            <div className="w-4 h-4 bg-red-400 rounded-full shadow-[0_0_10px_red]" />
+          </div>
         </div>
+        <LogoutButton />
       </div>
     </div>
   );

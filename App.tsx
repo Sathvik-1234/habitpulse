@@ -15,6 +15,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { PenaltyZone } from './components/PenaltyZone';
 import { LoginPage } from './components/LoginPage';
+import { NewPlayerRegistration } from './components/NewPlayerRegistration';
 import { getProgressInsight } from './services/geminiService';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { LocalProvider, useLocalContext } from './context/LocalContext';
@@ -22,7 +23,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 
 const AppContent = () => {
   const { currentUser } = useAuth();
-  const { userName, habits, logs, addHabit, deleteHabit, dailyState } = useLocalContext();
+  const { userName, habits, logs, addHabit, deleteHabit, dailyState, loadingData, isNewUser } = useLocalContext();
   const [currentDate, setCurrentDate] = useState(new Date());
   
   const [view, setView] = useState('DASHBOARD');
@@ -118,6 +119,21 @@ const AppContent = () => {
   // Flow Control
   if (!currentUser) {
     return <LoginPage />;
+  }
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-black">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-900 border-t-blue-500 rounded-full animate-spin" />
+          <p className="text-blue-500 font-display tracking-widest uppercase animate-pulse">Syncing with System...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isNewUser) {
+    return <NewPlayerRegistration />;
   }
 
   if (!userName) {
