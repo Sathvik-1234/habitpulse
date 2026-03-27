@@ -43,8 +43,6 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (saved) {
         const parsed = JSON.parse(saved);
         // Ensure new fields exist for backward compatibility
-        if (!parsed.playerStats.hp) parsed.playerStats.hp = 100 + (parsed.playerStats.vit || 10) * 10;
-        if (!parsed.playerStats.maxHp) parsed.playerStats.maxHp = 100 + (parsed.playerStats.vit || 10) * 10;
         if (parsed.playerStats.gold === undefined) parsed.playerStats.gold = 0;
         if (!parsed.streakState) parsed.streakState = { currentStreak: 0, longestStreak: 0, perfectDaysTotal: 0 };
         if (!parsed.dailyState) parsed.dailyState = { date: new Date().toISOString().split('T')[0], isPenaltyZone: false, allCompleted: false };
@@ -59,8 +57,6 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         level: 1,
         xp: 0,
         gold: 0,
-        hp: 200,
-        maxHp: 200,
         rank: 'E',
         playerClass: 'ASSASSIN',
         title: 'WOLF SLAYER',
@@ -124,11 +120,9 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               // Failed Penalty Zone -> Level Down
               newPlayerStats.level = Math.max(1, newPlayerStats.level - 1);
               newPlayerStats.xp = 0;
-              newPlayerStats.hp = newPlayerStats.maxHp;
               newDailyState.isPenaltyZone = false; // Reset penalty zone after level down
             } else {
-              // Failed normal day -> Enter Penalty Zone & Lose HP
-              newPlayerStats.hp = Math.max(1, newPlayerStats.hp - 10);
+              // Failed normal day -> Enter Penalty Zone
               newDailyState.isPenaltyZone = true;
             }
           }
@@ -232,11 +226,6 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       newStats[stat] += 1;
       newStats.availablePoints -= 1;
       
-      if (stat === 'vit') {
-        newStats.maxHp = 100 + (newStats.vit * 10);
-        newStats.hp += 10; // Heal the new max HP amount
-      }
-      
       return { ...prev, playerStats: newStats };
     });
   };
@@ -286,8 +275,6 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           newStats.level++;
           newStats.availablePoints += 5;
           newStats.gold += Math.round(100 * Math.pow(newStats.level, 1.1));
-          newStats.maxHp = 100 + (newStats.vit * 10);
-          newStats.hp = newStats.maxHp; // Full heal on level up
           leveledUp = true;
           requiredXp = calculateRequiredXP(newStats.level);
         }

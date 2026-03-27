@@ -15,8 +15,6 @@ export interface PlayerStats {
   level: number;
   xp: number;
   gold: number;
-  hp: number;
-  maxHp: number;
   rank: string;
   playerClass: string;
   title: string;

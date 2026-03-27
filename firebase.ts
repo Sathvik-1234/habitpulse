@@ -1,26 +1,20 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB5ec4ggBtr8UZTuh4JK3q5VK3Prtv0Xl4",
-  authDomain: "habitpulse-983ca.firebaseapp.com",
-  projectId: "habitpulse-983ca",
-  storageBucket: "habitpulse-983ca.firebasestorage.app",
-  messagingSenderId: "836895510028",
-  appId: "1:836895510028:web:14e202e1ea1a46d0d2a829",
-  measurementId: "G-L3MJKD69T8"
+  apiKey: "AIzaSyBoRPRBQygT9b0g8LIXswjDPCi-2jN7n7s",
+  authDomain: "habit-pulse-b7299.firebaseapp.com",
+  projectId: "habit-pulse-b7299",
+  storageBucket: "habit-pulse-b7299.firebasestorage.app",
+  messagingSenderId: "461725683788",
+  appId: "1:461725683788:web:51b1ca8abbcfb51534e4e9",
+  measurementId: "G-HZCT2NFNVT"
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
-export let messaging: any = null;
-isSupported().then((supported) => {
-  if (supported) {
-    messaging = getMessaging(app);
-  }
-});
+export { auth, db, googleProvider };

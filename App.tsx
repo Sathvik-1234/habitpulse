@@ -14,11 +14,14 @@ import { AddHabitModal } from './components/AddHabitModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { PenaltyZone } from './components/PenaltyZone';
+import { LoginPage } from './components/LoginPage';
 import { getProgressInsight } from './services/geminiService';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { LocalProvider, useLocalContext } from './context/LocalContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const AppContent = () => {
+  const { currentUser } = useAuth();
   const { userName, habits, logs, addHabit, deleteHabit, dailyState } = useLocalContext();
   const [currentDate, setCurrentDate] = useState(new Date());
   
@@ -113,6 +116,10 @@ const AppContent = () => {
   const selectedHabit = habits.find(h => h.id === selectedHabitId);
 
   // Flow Control
+  if (!currentUser) {
+    return <LoginPage />;
+  }
+
   if (!userName) {
     return <WelcomeScreen />;
   }
@@ -214,8 +221,10 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <LocalProvider>
-      <AppContent />
-    </LocalProvider>
+    <AuthProvider>
+      <LocalProvider>
+        <AppContent />
+      </LocalProvider>
+    </AuthProvider>
   );
 }

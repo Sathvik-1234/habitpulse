@@ -7,7 +7,6 @@ export const TopBar: React.FC = () => {
   
   const xpForNextLevel = calculateRequiredXP(playerStats.level);
   const xpPercentage = Math.min(100, Math.max(0, (playerStats.xp / xpForNextLevel) * 100));
-  const hpPercentage = Math.min(100, Math.max(0, (playerStats.hp / playerStats.maxHp) * 100));
 
   return (
     <div className="flex items-center justify-between p-4 bg-background border-b border-border shrink-0">
@@ -15,18 +14,6 @@ export const TopBar: React.FC = () => {
         <div className="flex items-center gap-4">
           <span className="text-white font-display text-xl tracking-wider">LVL : {playerStats.level}</span>
           <span className="text-yellow-400 font-display text-lg tracking-wider">GOLD : {playerStats.gold}</span>
-        </div>
-        
-        {/* HP Bar */}
-        <div className="flex items-center gap-2">
-          <span className="text-red-400 font-display text-sm tracking-wider w-8">HP</span>
-          <div className="h-2 flex-1 bg-surface border border-red-900 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-red-500 transition-all duration-500"
-              style={{ width: `${hpPercentage}%` }}
-            />
-          </div>
-          <span className="text-red-400 font-display text-xs tracking-wider w-12 text-right">{playerStats.hp}/{playerStats.maxHp}</span>
         </div>
 
         {/* XP Bar */}
