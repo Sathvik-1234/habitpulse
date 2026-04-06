@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import { Habit, JournalEntry } from "../types";
 
 const getClient = () => {
@@ -8,6 +8,52 @@ const getClient = () => {
     return null;
   }
   return new GoogleGenAI({ apiKey });
+};
+
+export const generateMusic = async (prompt: string): Promise<string> => {
+  const client = getClient();
+  if (!client) {
+    throw new Error("API Key invalid or missing");
+  }
+
+  try {
+    const response = await client.models.generateContentStream({
+      model: "lyria-3-clip-preview",
+      contents: prompt,
+    });
+
+    let audioBase64 = "";
+    let mimeType = "audio/wav";
+
+    for await (const chunk of response) {
+      const parts = chunk.candidates?.[0]?.content?.parts;
+      if (!parts) continue;
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          if (!audioBase64 && part.inlineData.mimeType) {
+            mimeType = part.inlineData.mimeType;
+          }
+          audioBase64 += part.inlineData.data;
+        }
+      }
+    }
+
+    if (!audioBase64) {
+      throw new Error("No audio generated");
+    }
+
+    // Decode base64 audio into a playable Blob URL
+    const binary = atob(audioBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.error("Error generating music:", error);
+    throw new Error("Failed to generate music");
+  }
 };
 
 export const getAiInsights = async (
@@ -41,7 +87,7 @@ export const getAiInsights = async (
 
   try {
     const response = await client.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: prompt,
     });
     

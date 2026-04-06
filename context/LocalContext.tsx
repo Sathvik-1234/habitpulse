@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { Habit, HabitLogs, JournalEntry, PlayerStats, StreakState, DailyState } from '../types';
 import { getDailyQuests, calculateRequiredXP } from '../lib/system';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
+import { updatePlayerStats } from '../lib/firebaseUtils';
+import { sendSystemNotification } from '../lib/notifications';
 
 interface LocalContextType {
   userName: string;
@@ -79,7 +81,12 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loadingData, setLoadingData] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
 
-  // Initial State Load from Firestore
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  // Real-time State Load from Firestore via onSnapshot
   useEffect(() => {
     if (!currentUser) {
       setLoadingData(false);
@@ -88,40 +95,36 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const loadData = async () => {
-      setLoadingData(true);
-      try {
-        const docRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(docRef);
+    setLoadingData(true);
+    const docRef = doc(db, 'users', currentUser.uid);
+    
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const parsed = docSnap.data() as any;
+        if (parsed.playerStats?.gold === undefined) parsed.playerStats.gold = 0;
+        if (!parsed.streakState) parsed.streakState = { currentStreak: 0, longestStreak: 0, perfectDaysTotal: 0 };
+        if (!parsed.dailyState) parsed.dailyState = { date: new Date().toISOString().split('T')[0], isPenaltyZone: false, allCompleted: false };
         
-        if (docSnap.exists()) {
-          const parsed = docSnap.data() as any;
-          // Ensure new fields exist for backward compatibility
-          if (parsed.playerStats?.gold === undefined) parsed.playerStats.gold = 0;
-          if (!parsed.streakState) parsed.streakState = { currentStreak: 0, longestStreak: 0, perfectDaysTotal: 0 };
-          if (!parsed.dailyState) parsed.dailyState = { date: new Date().toISOString().split('T')[0], isPenaltyZone: false, allCompleted: false };
-          
-          setData({
-            userName: parsed.userName || parsed.playerName || '',
-            playerStats: parsed.playerStats || defaultState.playerStats,
-            streakState: parsed.streakState || defaultState.streakState,
-            dailyState: parsed.dailyState || defaultState.dailyState,
-            habits: parsed.habits || [],
-            logs: parsed.logs || {},
-            journalEntries: parsed.journalEntries || []
-          });
-          setIsNewUser(false);
-        } else {
-          setIsNewUser(true);
-        }
-      } catch (e) {
-        console.error("Failed to load data from Firestore", e);
-      } finally {
-        setLoadingData(false);
+        setData({
+          userName: parsed.userName || parsed.playerName || '',
+          playerStats: parsed.playerStats || defaultState.playerStats,
+          streakState: parsed.streakState || defaultState.streakState,
+          dailyState: parsed.dailyState || defaultState.dailyState,
+          habits: parsed.habits || [],
+          logs: parsed.logs || {},
+          journalEntries: parsed.journalEntries || []
+        });
+        setIsNewUser(false);
+      } else {
+        setIsNewUser(true);
       }
-    };
+      setLoadingData(false);
+    }, (error) => {
+      console.error("Firestore onSnapshot error:", error);
+      setLoadingData(false);
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, [currentUser]);
 
   const registerUser = async (name: string) => {
@@ -129,7 +132,7 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newState = {
       ...defaultState,
       userName: name,
-      playerName: name // For backward compatibility if needed
+      playerName: name
     };
     try {
       await setDoc(doc(db, 'users', currentUser.uid), newState);
@@ -141,67 +144,53 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Save on Change to Firestore
-  useEffect(() => {
-    if (currentUser && !isNewUser && !loadingData) {
-      setDoc(doc(db, 'users', currentUser.uid), data).catch(console.error);
-    }
-  }, [data, currentUser, isNewUser, loadingData]);
-
   // Midnight Check & Penalty Logic
   useEffect(() => {
     if (!currentUser || isNewUser || loadingData) return;
 
-    const checkMidnight = () => {
+    const checkMidnight = async () => {
+      const currentData = dataRef.current;
       const todayStr = new Date().toISOString().split('T')[0];
       
-      setData(prev => {
-        if (prev.dailyState.date !== todayStr) {
-          // A new day has started. Check yesterday's completion.
-          const yesterdayStr = prev.dailyState.date;
-          const yesterdayLogs = prev.logs[yesterdayStr] || [];
-          
-          const systemQuests = getDailyQuests(prev.playerStats.level);
-          const allSystemCompleted = systemQuests.every(q => yesterdayLogs.includes(q.id));
-          const allCustomCompleted = prev.habits.every(h => yesterdayLogs.includes(h.id));
-          const allCompletedYesterday = allSystemCompleted && allCustomCompleted;
-          
-          let newStreakState = { ...prev.streakState };
-          let newPlayerStats = { ...prev.playerStats };
-          let newDailyState = { date: todayStr, isPenaltyZone: false, allCompleted: false };
+      if (currentData.dailyState.date !== todayStr) {
+        const yesterdayStr = currentData.dailyState.date;
+        const yesterdayLogs = currentData.logs[yesterdayStr] || [];
+        
+        const systemQuests = getDailyQuests(currentData.playerStats.level);
+        const allSystemCompleted = systemQuests.every(q => yesterdayLogs.includes(q.id));
+        const allCustomCompleted = currentData.habits.every(h => yesterdayLogs.includes(h.id));
+        const allCompletedYesterday = allSystemCompleted && allCustomCompleted;
+        
+        let newStreakState = { ...currentData.streakState };
+        let newPlayerStats = { ...currentData.playerStats };
+        let newDailyState = { date: todayStr, isPenaltyZone: false, allCompleted: false };
 
-          if (allCompletedYesterday) {
-            newStreakState.currentStreak += 1;
-            newStreakState.longestStreak = Math.max(newStreakState.longestStreak, newStreakState.currentStreak);
-            newStreakState.perfectDaysTotal += 1;
+        if (allCompletedYesterday) {
+          newStreakState.currentStreak += 1;
+          newStreakState.longestStreak = Math.max(newStreakState.longestStreak, newStreakState.currentStreak);
+          newStreakState.perfectDaysTotal += 1;
+        } else {
+          newStreakState.currentStreak = 0;
+          if (currentData.dailyState.isPenaltyZone) {
+            newPlayerStats.level = Math.max(1, newPlayerStats.level - 1);
+            newPlayerStats.xp = 0;
+            newDailyState.isPenaltyZone = false;
           } else {
-            // Failed to complete all quests
-            newStreakState.currentStreak = 0;
-            
-            if (prev.dailyState.isPenaltyZone) {
-              // Failed Penalty Zone -> Level Down
-              newPlayerStats.level = Math.max(1, newPlayerStats.level - 1);
-              newPlayerStats.xp = 0;
-              newDailyState.isPenaltyZone = false; // Reset penalty zone after level down
-            } else {
-              // Failed normal day -> Enter Penalty Zone
-              newDailyState.isPenaltyZone = true;
-            }
+            newDailyState.isPenaltyZone = true;
+            sendSystemNotification('Penalty Zone Entered', 'You failed to complete your daily quests. Survive the penalty zone to restore your status.');
           }
-
-          return {
-            ...prev,
-            playerStats: newPlayerStats,
-            streakState: newStreakState,
-            dailyState: newDailyState
-          };
         }
-        return prev;
-      });
+
+        await updatePlayerStats(currentUser.uid, {
+          playerStats: newPlayerStats,
+          streakState: newStreakState,
+          dailyState: newDailyState
+        });
+      }
     };
 
     checkMidnight();
-    const interval = setInterval(checkMidnight, 60000); // Check every minute
+    const interval = setInterval(checkMidnight, 60000);
     return () => clearInterval(interval);
   }, [currentUser, isNewUser, loadingData]);
 
@@ -210,177 +199,127 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!currentUser || isNewUser || loadingData) return;
 
     const checkReminders = () => {
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
+      const currentData = dataRef.current;
       const now = new Date();
       const hours = now.getHours();
       const minutes = now.getMinutes();
       
-      // Only trigger exactly on the hour to avoid spamming
       if (minutes !== 0) return;
 
       const todayStr = now.toISOString().split('T')[0];
-      
-      setData(prev => {
-        const todayLogs = prev.logs[todayStr] || [];
-        const systemQuests = getDailyQuests(prev.playerStats.level);
-        const allSystemCompleted = systemQuests.every(q => todayLogs.includes(q.id));
-        const allCustomCompleted = prev.habits.every(h => todayLogs.includes(h.id));
-        const allCompleted = allSystemCompleted && allCustomCompleted;
+      const todayLogs = currentData.logs[todayStr] || [];
+      const systemQuests = getDailyQuests(currentData.playerStats.level);
+      const allSystemCompleted = systemQuests.every(q => todayLogs.includes(q.id));
+      const allCustomCompleted = currentData.habits.every(h => todayLogs.includes(h.id));
+      const allCompleted = allSystemCompleted && allCustomCompleted;
 
-        if (!allCompleted) {
-          if (hours === 8) {
-            new Notification('System Message', {
-              body: 'A new Daily Quest has arrived. Failure to complete it will result in a penalty.',
-              icon: '/favicon.ico'
-            });
-          } else if (hours === 18) {
-            new Notification('System Message', {
-              body: 'Evening approaches. Your Daily Quest remains incomplete.',
-              icon: '/favicon.ico'
-            });
-          } else if (hours === 22) {
-            new Notification('System Warning', {
-              body: 'Time is running out. Complete your Daily Quest to avoid the Penalty Zone.',
-              icon: '/favicon.ico'
-            });
-          }
+      if (!allCompleted) {
+        if (hours === 8) {
+          sendSystemNotification('System Message', 'A new Daily Quest has arrived. Failure to complete it will result in a penalty.');
+        } else if (hours === 20) {
+          sendSystemNotification('System Warning', 'Time is running out. Complete your Daily Quest to avoid the Penalty Zone.');
         }
-        return prev;
-      });
+      }
     };
 
-    // Check every minute
     const interval = setInterval(checkReminders, 60000);
     return () => clearInterval(interval);
   }, [currentUser, isNewUser, loadingData]);
 
-  const setUserName = (name: string) => {
-    setData(prev => ({ ...prev, userName: name }));
+  const setUserName = async (name: string) => {
+    if (!currentUser) return;
+    await updatePlayerStats(currentUser.uid, { userName: name });
   };
 
-  const addHabit = (name: string, category: string, goal?: number, unit?: string) => {
-    const newHabit: Habit = {
-      id: crypto.randomUUID(),
-      name,
-      category,
-      goal,
-      unit
-    };
-    setData(prev => ({ ...prev, habits: [...prev.habits, newHabit] }));
+  const addHabit = async (name: string, category: string, goal?: number, unit?: string) => {
+    if (!currentUser) return;
+    const newHabit: Habit = { id: crypto.randomUUID(), name, category, goal, unit };
+    await updatePlayerStats(currentUser.uid, { habits: [...data.habits, newHabit] });
   };
 
-  const deleteHabit = (id: string) => {
-    setData(prev => ({
-      ...prev,
-      habits: prev.habits.filter(h => h.id !== id),
-    }));
+  const deleteHabit = async (id: string) => {
+    if (!currentUser) return;
+    await updatePlayerStats(currentUser.uid, { habits: data.habits.filter(h => h.id !== id) });
   };
 
-  const allocateStat = (stat: 'str' | 'vit' | 'agi' | 'int') => {
-    setData(prev => {
-      if (prev.playerStats.availablePoints <= 0) return prev;
+  const allocateStat = async (stat: 'str' | 'vit' | 'agi' | 'int') => {
+    if (!currentUser || data.playerStats.availablePoints <= 0) return;
+    const newStats = { ...data.playerStats };
+    newStats[stat] += 1;
+    newStats.availablePoints -= 1;
+    await updatePlayerStats(currentUser.uid, { playerStats: newStats });
+  };
+
+  const resolvePenalty = async () => {
+    if (!currentUser) return;
+    await updatePlayerStats(currentUser.uid, { dailyState: { ...data.dailyState, isPenaltyZone: false } });
+  };
+
+  const toggleHabit = async (habitId: string, dateStr: string) => {
+    if (!currentUser) return;
+    const currentDayLogs = data.logs[dateStr] || [];
+    const isCompleted = currentDayLogs.includes(habitId);
+    
+    let newDayLogs = isCompleted 
+      ? currentDayLogs.filter(id => id !== habitId)
+      : [...currentDayLogs, habitId];
+
+    const newLogs = { ...data.logs, [dateStr]: newDayLogs };
+    
+    const systemQuests = getDailyQuests(data.playerStats.level);
+    const allSystemCompleted = systemQuests.every(q => newDayLogs.includes(q.id));
+    const allCustomCompleted = data.habits.every(h => newDayLogs.includes(h.id));
+    const allCompletedNow = allSystemCompleted && allCustomCompleted;
+    
+    const wasAllCompleted = data.dailyState.allCompleted;
+
+    let newStats = { ...data.playerStats };
+    let newDailyState = { ...data.dailyState, allCompleted: allCompletedNow };
+
+    if (allCompletedNow && !wasAllCompleted) {
+      newStats.xp += 100;
+      let leveledUp = false;
+      let requiredXp = calculateRequiredXP(newStats.level);
       
-      const newStats = { ...prev.playerStats };
-      newStats[stat] += 1;
-      newStats.availablePoints -= 1;
+      while (newStats.xp >= requiredXp) {
+        newStats.xp -= requiredXp;
+        newStats.level++;
+        newStats.availablePoints += 5;
+        newStats.gold += Math.round(100 * Math.pow(newStats.level, 1.1));
+        leveledUp = true;
+        requiredXp = calculateRequiredXP(newStats.level);
+      }
       
-      return { ...prev, playerStats: newStats };
+      if (leveledUp) {
+        sendSystemNotification('Level Up!', `Congratulations! You have reached Level ${newStats.level}. You have unspent attribute points.`);
+      }
+    } else if (!allCompletedNow && wasAllCompleted) {
+      newStats.xp = Math.max(0, newStats.xp - 100);
+    }
+
+    await updatePlayerStats(currentUser.uid, {
+      playerStats: newStats,
+      dailyState: newDailyState,
+      logs: newLogs
     });
   };
 
-  const resolvePenalty = () => {
-    setData(prev => ({
-      ...prev,
-      dailyState: { ...prev.dailyState, isPenaltyZone: false }
-    }));
+  const addJournalEntry = async (mood: string, tags: string[], content: string, date: string) => {
+    if (!currentUser) return;
+    const newEntry: JournalEntry = { id: crypto.randomUUID(), date, mood: mood as any, tags, content };
+    await updatePlayerStats(currentUser.uid, { journalEntries: [newEntry, ...data.journalEntries] });
   };
 
-  const toggleHabit = (habitId: string, dateStr: string) => {
-    setData(prev => {
-      const currentDayLogs = prev.logs[dateStr] || [];
-      const isCompleted = currentDayLogs.includes(habitId);
-      
-      let newDayLogs;
-      if (isCompleted) {
-        newDayLogs = currentDayLogs.filter(id => id !== habitId);
-      } else {
-        newDayLogs = [...currentDayLogs, habitId];
-      }
-
-      const newLogs = { ...prev.logs, [dateStr]: newDayLogs };
-      
-      // Check if ALL habits and system quests are completed today
-      const systemQuests = getDailyQuests(prev.playerStats.level);
-      const allSystemCompleted = systemQuests.every(q => newDayLogs.includes(q.id));
-      const allCustomCompleted = prev.habits.every(h => newDayLogs.includes(h.id));
-      const allCompletedNow = allSystemCompleted && allCustomCompleted;
-      
-      const wasAllCompleted = prev.dailyState.allCompleted;
-
-      let newStats = { ...prev.playerStats };
-      let newDailyState = { ...prev.dailyState, allCompleted: allCompletedNow };
-
-      // Award XP only if transitioning to ALL completed
-      if (allCompletedNow && !wasAllCompleted) {
-        // 100 XP per perfect day
-        newStats.xp += 100;
-        
-        let leveledUp = false;
-        let requiredXp = calculateRequiredXP(newStats.level);
-        
-        while (newStats.xp >= requiredXp) {
-          newStats.xp -= requiredXp;
-          newStats.level++;
-          newStats.availablePoints += 5;
-          newStats.gold += Math.round(100 * Math.pow(newStats.level, 1.1));
-          leveledUp = true;
-          requiredXp = calculateRequiredXP(newStats.level);
-        }
-        
-        if (leveledUp && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification('Level Up!', {
-            body: `Congratulations! You have reached Level ${newStats.level}. You have unspent attribute points.`,
-            icon: '/favicon.ico'
-          });
-        }
-      } else if (!allCompletedNow && wasAllCompleted) {
-        newStats.xp = Math.max(0, newStats.xp - 100);
-      }
-
-      return {
-        ...prev,
-        playerStats: newStats,
-        dailyState: newDailyState,
-        logs: newLogs
-      };
-    });
-  };
-
-  const addJournalEntry = (mood: string, tags: string[], content: string, date: string) => {
-    const newEntry: JournalEntry = {
-      id: crypto.randomUUID(),
-      date, // Using YYYY-MM-DD
-      mood: mood as any,
-      tags,
-      content
-    };
-    setData(prev => ({
-      ...prev,
-      journalEntries: [newEntry, ...prev.journalEntries]
-    }));
-  };
-
-  const deleteJournalEntry = (id: string) => {
-    setData(prev => ({
-      ...prev,
-      journalEntries: prev.journalEntries.filter(e => e.id !== id)
-    }));
+  const deleteJournalEntry = async (id: string) => {
+    if (!currentUser) return;
+    await updatePlayerStats(currentUser.uid, { journalEntries: data.journalEntries.filter(e => e.id !== id) });
   };
 
   const clearData = () => {
     if(window.confirm("Are you sure you want to reset all data?")) {
-        setData(defaultState);
+        if (currentUser) {
+          updatePlayerStats(currentUser.uid, defaultState);
+        }
     }
   };
 
@@ -426,7 +365,9 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           journalEntries: Array.isArray(parsed.journalEntries) ? parsed.journalEntries : []
       };
       
-      setData(newData);
+      if (currentUser) {
+        updatePlayerStats(currentUser.uid, newData);
+      }
       return true;
     } catch (e) {
       console.error("Failed to import sync code:", e);

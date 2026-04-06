@@ -68,6 +68,21 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
     return habit.goal || 1;
   };
 
+  const getCategoryColor = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'health': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'growth': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'career': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'mental': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'strength': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'endurance': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'spirit': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+      case 'intellect': return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
+      case 'survival': return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
+  };
+
   const systemQuests = getDailyQuests(playerStats.level);
   const allQuests = [...systemQuests, ...habits];
 
@@ -92,12 +107,12 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
       <div className="flex-1 flex overflow-hidden relative">
         
         {/* Sticky Left Column: Habit Names */}
-        <div className="w-56 flex-shrink-0 bg-surface z-20 border-r border-slate-700 shadow-xl overflow-y-auto custom-scrollbar">
+        <div className="w-64 flex-shrink-0 bg-surface z-20 border-r border-slate-700 shadow-xl overflow-y-auto custom-scrollbar">
           <div className="h-12 border-b border-slate-700 bg-slate-800/80 backdrop-blur sticky top-0 z-30 flex items-center px-4 font-semibold text-slate-300 shrink-0">
             Habit Name
           </div>
           {allQuests.map((habit) => {
-            const isSystem = habit.id.startsWith('sys-');
+            const isSystem = habit.id.startsWith('sys-') || habit.id.startsWith('sys_');
             const goal = isSystem ? habit.goal : getDynamicGoal(habit, playerStats.level);
             return (
               <div
@@ -105,13 +120,20 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
                 className={`h-14 border-b border-slate-700/50 flex items-center justify-between px-4 group transition-all cursor-pointer border-l-4 ${selectedHabitId === habit.id ? 'bg-slate-700/50 border-l-primary' : 'border-l-transparent hover:bg-slate-800'}`}
                 onClick={() => !isSystem && onSelectHabit(habit.id)}
               >
-                <div className="flex flex-col overflow-hidden max-w-[120px]">
-                  <span className={`truncate text-sm font-medium ${selectedHabitId === habit.id ? 'text-white' : (isSystem ? 'text-blue-400' : 'text-slate-300')}`} title={habit.name}>
-                    {isSystem ? `[SYS] ${habit.name}` : habit.name}
-                  </span>
-                  <span className="text-[10px] text-slate-500 truncate">
-                    {habit.category} {goal > 1 ? `| ${goal} ${habit.unit || ''}` : ''}
-                  </span>
+                <div className="flex flex-col overflow-hidden max-w-[140px]">
+                  <div className="flex items-center gap-2">
+                    <span className={`truncate text-sm font-medium ${selectedHabitId === habit.id ? 'text-white' : (isSystem ? 'text-blue-400' : 'text-slate-300')}`} title={habit.name}>
+                      {isSystem ? `[SYS] ${habit.name}` : habit.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${getCategoryColor(habit.category)}`}>
+                      {habit.category || 'General'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 truncate">
+                      {goal > 1 ? `${goal} ${habit.unit || ''}` : ''}
+                    </span>
+                  </div>
                 </div>
                 
                 <div className="flex items-center gap-1">

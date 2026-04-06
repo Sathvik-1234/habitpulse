@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { Sparkles, Activity, PieChart as PieIcon } from 'lucide-react';
 import { MonthlyStats, Habit, HabitLogs } from '../types';
+import { AiInsights } from './AiInsights';
 
 interface VisualizationPanelProps {
   stats: MonthlyStats;
@@ -103,6 +104,9 @@ export const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
           {loadingAI ? <span className="animate-pulse">Analyzing patterns...</span> : aiMessage || "Start tracking to get insights!"}
         </p>
       </div>
+
+      {/* AI Coach Insights */}
+      <AiInsights />
 
       {/* 2. Life Balance Widget (Radar) */}
       <div className="shrink-0 bg-surface rounded-2xl border border-slate-700 p-4 flex flex-col relative overflow-hidden h-64">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocalContext } from '../context/LocalContext';
 import { Camera, Plus } from 'lucide-react';
+import { SystemRadio } from './SystemRadio';
 
 export const StatusView: React.FC = () => {
   const { userName, playerStats, allocateStat } = useLocalContext();
@@ -156,6 +157,9 @@ export const StatusView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* System Radio */}
+      <SystemRadio />
 
     </div>
   );
