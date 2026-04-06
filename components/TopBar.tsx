@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocalContext } from '../context/LocalContext';
 import { calculateRequiredXP } from '../lib/system';
 import { LogoutButton } from './LogoutButton';
+import { InstallButton } from './InstallButton';
 
 export const TopBar: React.FC = () => {
   const { userName, playerStats } = useLocalContext();
@@ -39,6 +40,7 @@ export const TopBar: React.FC = () => {
             <div className="w-4 h-4 bg-red-400 rounded-full shadow-[0_0_10px_red]" />
           </div>
         </div>
+        <InstallButton />
         <LogoutButton />
       </div>
     </div>
