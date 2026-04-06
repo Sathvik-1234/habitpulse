@@ -18,7 +18,6 @@ interface LocalContextType {
   isNewUser: boolean;
   loadingData: boolean;
   registerUser: (name: string) => Promise<void>;
-  setUserName: (name: string) => void;
   addHabit: (name: string, category: string, goal?: number, unit?: string) => void;
   deleteHabit: (id: string) => void;
   toggleHabit: (habitId: string, dateStr: string) => void;
@@ -99,14 +98,25 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const docRef = doc(db, 'users', currentUser.uid);
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      console.log("onSnapshot fired. exists:", docSnap.exists());
       if (docSnap.exists()) {
         const parsed = docSnap.data() as any;
+        console.log("Firestore data:", parsed);
+        
+        const fetchedUserName = parsed.userName || parsed.playerName || currentUser.displayName || 'Player';
+        console.log("Setting userName to:", fetchedUserName);
+        
+        // Automatically save the display name if it wasn't in Firestore
+        if (!parsed.userName && !parsed.playerName && currentUser.displayName) {
+          updatePlayerStats(currentUser.uid, { userName: currentUser.displayName }).catch(console.error);
+        }
+        
         if (parsed.playerStats?.gold === undefined) parsed.playerStats.gold = 0;
         if (!parsed.streakState) parsed.streakState = { currentStreak: 0, longestStreak: 0, perfectDaysTotal: 0 };
         if (!parsed.dailyState) parsed.dailyState = { date: new Date().toISOString().split('T')[0], isPenaltyZone: false, allCompleted: false };
         
         setData({
-          userName: parsed.userName || parsed.playerName || '',
+          userName: fetchedUserName,
           playerStats: parsed.playerStats || defaultState.playerStats,
           streakState: parsed.streakState || defaultState.streakState,
           dailyState: parsed.dailyState || defaultState.dailyState,
@@ -226,20 +236,19 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => clearInterval(interval);
   }, [currentUser, isNewUser, loadingData]);
 
-  const setUserName = async (name: string) => {
-    if (!currentUser) return;
-    await updatePlayerStats(currentUser.uid, { userName: name });
-  };
-
   const addHabit = async (name: string, category: string, goal?: number, unit?: string) => {
     if (!currentUser) return;
     const newHabit: Habit = { id: crypto.randomUUID(), name, category, goal, unit };
-    await updatePlayerStats(currentUser.uid, { habits: [...data.habits, newHabit] });
+    const newHabits = [...data.habits, newHabit];
+    setData(prev => ({ ...prev, habits: newHabits }));
+    await updatePlayerStats(currentUser.uid, { habits: newHabits });
   };
 
   const deleteHabit = async (id: string) => {
     if (!currentUser) return;
-    await updatePlayerStats(currentUser.uid, { habits: data.habits.filter(h => h.id !== id) });
+    const newHabits = data.habits.filter(h => h.id !== id);
+    setData(prev => ({ ...prev, habits: newHabits }));
+    await updatePlayerStats(currentUser.uid, { habits: newHabits });
   };
 
   const allocateStat = async (stat: 'str' | 'vit' | 'agi' | 'int') => {
@@ -247,12 +256,15 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newStats = { ...data.playerStats };
     newStats[stat] += 1;
     newStats.availablePoints -= 1;
+    setData(prev => ({ ...prev, playerStats: newStats }));
     await updatePlayerStats(currentUser.uid, { playerStats: newStats });
   };
 
   const resolvePenalty = async () => {
     if (!currentUser) return;
-    await updatePlayerStats(currentUser.uid, { dailyState: { ...data.dailyState, isPenaltyZone: false } });
+    const newDailyState = { ...data.dailyState, isPenaltyZone: false };
+    setData(prev => ({ ...prev, dailyState: newDailyState }));
+    await updatePlayerStats(currentUser.uid, { dailyState: newDailyState });
   };
 
   const toggleHabit = async (habitId: string, dateStr: string) => {
@@ -297,6 +309,14 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       newStats.xp = Math.max(0, newStats.xp - 100);
     }
 
+    // Optimistic UI update
+    setData(prev => ({
+      ...prev,
+      playerStats: newStats,
+      dailyState: newDailyState,
+      logs: newLogs
+    }));
+
     await updatePlayerStats(currentUser.uid, {
       playerStats: newStats,
       dailyState: newDailyState,
@@ -307,12 +327,16 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addJournalEntry = async (mood: string, tags: string[], content: string, date: string) => {
     if (!currentUser) return;
     const newEntry: JournalEntry = { id: crypto.randomUUID(), date, mood: mood as any, tags, content };
-    await updatePlayerStats(currentUser.uid, { journalEntries: [newEntry, ...data.journalEntries] });
+    const newEntries = [newEntry, ...data.journalEntries];
+    setData(prev => ({ ...prev, journalEntries: newEntries }));
+    await updatePlayerStats(currentUser.uid, { journalEntries: newEntries });
   };
 
   const deleteJournalEntry = async (id: string) => {
     if (!currentUser) return;
-    await updatePlayerStats(currentUser.uid, { journalEntries: data.journalEntries.filter(e => e.id !== id) });
+    const newEntries = data.journalEntries.filter(e => e.id !== id);
+    setData(prev => ({ ...prev, journalEntries: newEntries }));
+    await updatePlayerStats(currentUser.uid, { journalEntries: newEntries });
   };
 
   const clearData = () => {
@@ -386,7 +410,6 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     isNewUser,
     loadingData,
     registerUser,
-    setUserName,
     addHabit,
     deleteHabit,
     toggleHabit,

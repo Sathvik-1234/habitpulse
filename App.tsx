@@ -12,11 +12,9 @@ import { Journal } from './components/Journal';
 import { SyncSettings } from './components/SyncSettings';
 import { AddHabitModal } from './components/AddHabitModal';
 import { ConfirmModal } from './components/ConfirmModal';
-import { WelcomeScreen } from './components/WelcomeScreen';
 import { PenaltyZone } from './components/PenaltyZone';
 import { LoginPage } from './components/LoginPage';
 import { NewPlayerRegistration } from './components/NewPlayerRegistration';
-import { getProgressInsight } from './services/geminiService';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { LocalProvider, useLocalContext } from './context/LocalContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -134,10 +132,6 @@ const AppContent = () => {
 
   if (isNewUser) {
     return <NewPlayerRegistration />;
-  }
-
-  if (!userName) {
-    return <WelcomeScreen />;
   }
 
   if (dailyState.isPenaltyZone) {
