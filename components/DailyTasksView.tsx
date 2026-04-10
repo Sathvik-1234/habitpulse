@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocalContext } from '../context/LocalContext';
-import { Check, Info, AlertTriangle } from 'lucide-react';
+import { Check, Info, AlertTriangle, Clock } from 'lucide-react';
 import { getDailyQuests } from '../lib/system';
 
 export const DailyTasksView: React.FC = () => {
@@ -64,6 +64,23 @@ export const DailyTasksView: React.FC = () => {
       return 1.0 + (level - 1) * 0.25;
     }
     return habit.goal || 1;
+  };
+
+  const getTaskStatus = (habit: any) => {
+    if (!habit.dueTime) return null;
+    
+    const now = new Date();
+    const [dueHours, dueMinutes] = habit.dueTime.split(':').map(Number);
+    
+    let taskDate = new Date();
+    taskDate.setHours(dueHours, dueMinutes, 0, 0);
+
+    const diffMs = taskDate.getTime() - now.getTime();
+    const diffMins = diffMs / (1000 * 60);
+
+    if (diffMins < 0) return 'OVERDUE';
+    if (diffMins <= 60) return 'UPCOMING';
+    return 'NORMAL';
   };
 
   return (
@@ -164,23 +181,34 @@ export const DailyTasksView: React.FC = () => {
                 const current = isCompleted ? goal : 0;
                 
                 return (
-                  <div key={habit.id} className="flex items-center gap-4">
-                    <button
-                      onClick={() => toggleHabit(habit.id, todayStr)}
-                      className={`w-8 h-8 flex items-center justify-center border-2 transition-colors shrink-0 ${
-                        isCompleted 
-                          ? 'bg-primary border-primary text-white' 
-                          : 'bg-transparent border-slate-600 text-transparent hover:border-primary'
-                      }`}
-                    >
-                      <Check size={20} strokeWidth={3} />
-                    </button>
-                    <div className="flex-1 flex items-center">
-                      <span className={`font-display text-2xl tracking-widest uppercase transition-colors ${
-                        isCompleted ? 'text-slate-500 line-through' : 'text-emerald-400'
-                      }`}>
-                        [PERSONAL] {habit.name} [{current}/{goal} {habit.unit || ''}]
-                      </span>
+                  <div key={habit.id} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => toggleHabit(habit.id, todayStr)}
+                        className={`w-8 h-8 flex items-center justify-center border-2 transition-colors shrink-0 ${
+                          isCompleted 
+                            ? 'bg-primary border-primary text-white' 
+                            : 'bg-transparent border-slate-600 text-transparent hover:border-primary'
+                        }`}
+                      >
+                        <Check size={20} strokeWidth={3} />
+                      </button>
+                      <div className="flex-1 flex items-center justify-between">
+                        <span className={`font-display text-2xl tracking-widest uppercase transition-colors ${
+                          isCompleted ? 'text-slate-500 line-through' : 'text-emerald-400'
+                        }`}>
+                          [PERSONAL] {habit.name} [{current}/{goal} {habit.unit || ''}]
+                        </span>
+                        {habit.dueTime && !isCompleted && (
+                          <div className={`flex items-center gap-1 text-sm font-display tracking-widest uppercase ${
+                            getTaskStatus(habit) === 'OVERDUE' ? 'text-red-500 animate-pulse' :
+                            getTaskStatus(habit) === 'UPCOMING' ? 'text-yellow-500' : 'text-slate-400'
+                          }`}>
+                            <Clock size={14} />
+                            <span>{habit.dueTime}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

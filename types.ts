@@ -4,6 +4,8 @@ export interface Habit {
   category: string;
   goal?: number; // e.g., 11 for pushups
   unit?: string; // e.g., 'PUSHUPS'
+  dueDate?: string; // YYYY-MM-DD
+  dueTime?: string; // HH:mm
 }
 
 // Map of date string (YYYY-MM-DD) to array of completed habit IDs

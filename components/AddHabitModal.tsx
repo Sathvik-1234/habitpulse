@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 interface AddHabitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (name: string, category: string) => void;
+  onAdd: (name: string, category: string, goal?: number, unit?: string, dueDate?: string, dueTime?: string) => void;
 }
 
 const CATEGORIES = ['Health', 'Growth', 'Career', 'Mental', 'General'];
@@ -12,15 +12,19 @@ const CATEGORIES = ['Health', 'Growth', 'Career', 'Mental', 'General'];
 export const AddHabitModal: React.FC<AddHabitModalProps> = ({ isOpen, onClose, onAdd }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
+  const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      onAdd(name, category);
+      onAdd(name, category, undefined, undefined, dueDate || undefined, dueTime || undefined);
       setName('');
       setCategory(CATEGORIES[0]);
+      setDueDate('');
+      setDueTime('');
       onClose();
     }
   };
@@ -65,6 +69,27 @@ export const AddHabitModal: React.FC<AddHabitModalProps> = ({ isOpen, onClose, o
                   {cat}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Due Date (Optional)</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Due Time (Optional)</label>
+              <input
+                type="time"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary outline-none"
+              />
             </div>
           </div>
 

@@ -18,7 +18,7 @@ interface LocalContextType {
   isNewUser: boolean;
   loadingData: boolean;
   registerUser: (name: string) => Promise<void>;
-  addHabit: (name: string, category: string, goal?: number, unit?: string) => void;
+  addHabit: (name: string, category: string, goal?: number, unit?: string, dueDate?: string, dueTime?: string) => void;
   deleteHabit: (id: string) => void;
   toggleHabit: (habitId: string, dateStr: string) => void;
   addJournalEntry: (mood: string, tags: string[], content: string, date: string) => void;
@@ -214,10 +214,34 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const hours = now.getHours();
       const minutes = now.getMinutes();
       
-      if (minutes !== 0) return;
-
       const todayStr = now.toISOString().split('T')[0];
       const todayLogs = currentData.logs[todayStr] || [];
+
+      // Check specific task reminders
+      currentData.habits.forEach(habit => {
+        if (todayLogs.includes(habit.id)) return; // already completed
+        
+        if (habit.dueTime) {
+          const [dueHours, dueMinutes] = habit.dueTime.split(':').map(Number);
+          
+          // Remind 15 minutes before
+          let remindDate = new Date();
+          remindDate.setHours(dueHours, dueMinutes, 0, 0);
+          remindDate.setMinutes(remindDate.getMinutes() - 15);
+          
+          if (now.getHours() === remindDate.getHours() && now.getMinutes() === remindDate.getMinutes()) {
+            sendSystemNotification('Upcoming Quest', `[${habit.name}] is due in 15 minutes!`);
+          }
+          
+          // Overdue notification
+          if (now.getHours() === dueHours && now.getMinutes() === dueMinutes) {
+            sendSystemNotification('Quest Overdue', `[${habit.name}] is now overdue!`);
+          }
+        }
+      });
+
+      if (minutes !== 0) return;
+
       const systemQuests = getDailyQuests(currentData.playerStats.level);
       const allSystemCompleted = systemQuests.every(q => todayLogs.includes(q.id));
       const allCustomCompleted = currentData.habits.every(h => todayLogs.includes(h.id));
@@ -236,9 +260,9 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => clearInterval(interval);
   }, [currentUser, isNewUser, loadingData]);
 
-  const addHabit = async (name: string, category: string, goal?: number, unit?: string) => {
+  const addHabit = async (name: string, category: string, goal?: number, unit?: string, dueDate?: string, dueTime?: string) => {
     if (!currentUser) return;
-    const newHabit: Habit = { id: crypto.randomUUID(), name, category, goal, unit };
+    const newHabit: Habit = { id: crypto.randomUUID(), name, category, goal, unit, dueDate, dueTime };
     const newHabits = [...data.habits, newHabit];
     setData(prev => ({ ...prev, habits: newHabits }));
     await updatePlayerStats(currentUser.uid, { habits: newHabits });
