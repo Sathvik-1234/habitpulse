@@ -167,34 +167,55 @@ export const LocalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const yesterdayLogs = currentData.logs[yesterdayStr] || [];
         
         const systemQuests = getDailyQuests(currentData.playerStats.level);
-        const allSystemCompleted = systemQuests.every(q => yesterdayLogs.includes(q.id));
-        const allCustomCompleted = currentData.habits.every(h => yesterdayLogs.includes(h.id));
-        const allCompletedYesterday = allSystemCompleted && allCustomCompleted;
+        const completedSystemCount = systemQuests.filter(q => yesterdayLogs.includes(q.id)).length;
+        const completedHabitCount = currentData.habits.filter(h => yesterdayLogs.includes(h.id)).length;
+        
+        const totalCompletedYesterday = completedSystemCount + completedHabitCount;
+        const totalTasksYesterday = systemQuests.length + currentData.habits.length;
+        const allCompletedYesterday = totalCompletedYesterday === totalTasksYesterday;
         
         let newStreakState = { ...currentData.streakState };
         let newPlayerStats = { ...currentData.playerStats };
         let newDailyState = { date: todayStr, isPenaltyZone: false, allCompleted: false };
+        let newHabits = [...currentData.habits];
 
-        if (allCompletedYesterday) {
+        if (allCompletedYesterday && totalTasksYesterday > 0) {
           newStreakState.currentStreak += 1;
           newStreakState.longestStreak = Math.max(newStreakState.longestStreak, newStreakState.currentStreak);
           newStreakState.perfectDaysTotal += 1;
-        } else {
+        } else if (totalTasksYesterday > 0) {
           newStreakState.currentStreak = 0;
-          if (currentData.dailyState.isPenaltyZone) {
-            newPlayerStats.level = Math.max(1, newPlayerStats.level - 1);
-            newPlayerStats.xp = 0;
-            newDailyState.isPenaltyZone = false;
-          } else {
-            newDailyState.isPenaltyZone = true;
-            sendSystemNotification('Penalty Zone Entered', 'You failed to complete your daily quests. Survive the penalty zone to restore your status.');
+          
+          if (totalCompletedYesterday === 0) {
+            newPlayerStats.xp = Math.max(0, newPlayerStats.xp - 50);
           }
+
+          const penaltyExists = newHabits.some(h => h.name.includes('[SYSTEM PENALTY: SURVIVAL QUEST]'));
+          if (!penaltyExists) {
+            newHabits.push({
+              id: crypto.randomUUID(),
+              name: '[SYSTEM PENALTY: SURVIVAL QUEST]',
+              category: 'Penalty',
+              goal: 1,
+              unit: 'Completion'
+            });
+          }
+          sendSystemNotification('System Penalty', 'You failed to complete all quests yesterday. A penalty quest has been assigned.');
         }
+
+        setData(prev => ({
+          ...prev,
+          playerStats: newPlayerStats,
+          streakState: newStreakState,
+          dailyState: newDailyState,
+          habits: newHabits
+        }));
 
         await updatePlayerStats(currentUser.uid, {
           playerStats: newPlayerStats,
           streakState: newStreakState,
-          dailyState: newDailyState
+          dailyState: newDailyState,
+          habits: newHabits
         });
       }
     };

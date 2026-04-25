@@ -109,7 +109,7 @@ export const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
         <div className="absolute top-4 left-4 z-10 flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
           <PieIcon size={14} /> Life Balance
         </div>
-        <div className="flex-1 mt-4">
+        <div className="flex-1 mt-4 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart cx="50%" cy="55%" outerRadius="65%" data={radarData}>
               <PolarGrid stroke="#334155" />
@@ -127,7 +127,7 @@ export const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
         <div className="absolute top-4 left-4 z-10 flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
           <Activity size={14} /> 7-Day Volume
         </div>
-        <div className="flex-1 mt-6">
+        <div className="flex-1 mt-6 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={volumeData} margin={{ left: -20, right: 10, top: 10 }}>
               <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />

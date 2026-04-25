@@ -180,6 +180,8 @@ export const DailyTasksView: React.FC = () => {
                 const goal = getDynamicGoal(habit, playerStats.level);
                 const current = isCompleted ? goal : 0;
                 
+                const isPenalty = habit.name.includes('[SYSTEM PENALTY');
+                
                 return (
                   <div key={habit.id} className="flex flex-col gap-1">
                     <div className="flex items-center gap-4">
@@ -187,19 +189,19 @@ export const DailyTasksView: React.FC = () => {
                         onClick={() => toggleHabit(habit.id, todayStr)}
                         className={`w-8 h-8 flex items-center justify-center border-2 transition-colors shrink-0 ${
                           isCompleted 
-                            ? 'bg-primary border-primary text-white' 
-                            : 'bg-transparent border-slate-600 text-transparent hover:border-primary'
+                            ? (isPenalty ? 'bg-red-500 border-red-500 text-white' : 'bg-primary border-primary text-white')
+                            : (isPenalty ? 'bg-red-900/30 border-red-500 text-transparent shadow-[0_0_15px_rgba(239,68,68,0.6)] animate-pulse' : 'bg-transparent border-slate-600 text-transparent hover:border-primary')
                         }`}
                       >
                         <Check size={20} strokeWidth={3} />
                       </button>
                       <div className="flex-1 flex items-center justify-between">
                         <span className={`font-display text-2xl tracking-widest uppercase transition-colors ${
-                          isCompleted ? 'text-slate-500 line-through' : 'text-emerald-400'
+                          isCompleted ? 'text-slate-500 line-through' : (isPenalty ? 'text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-emerald-400')
                         }`}>
-                          [PERSONAL] {habit.name} [{current}/{goal} {habit.unit || ''}]
+                          {!isPenalty && '[PERSONAL] '}{habit.name} [{current}/{goal} {habit.unit || ''}]
                         </span>
-                        {habit.dueTime && !isCompleted && (
+                        {habit.dueTime && !isCompleted && !isPenalty && (
                           <div className={`flex items-center gap-1 text-sm font-display tracking-widest uppercase ${
                             getTaskStatus(habit) === 'OVERDUE' ? 'text-red-500 animate-pulse' :
                             getTaskStatus(habit) === 'UPCOMING' ? 'text-yellow-500' : 'text-slate-400'

@@ -92,7 +92,7 @@ export const HabitDetail: React.FC<HabitDetailProps> = ({
           <div className="absolute top-3 left-4 text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
             <CheckCircle2 size={14} /> Consistency
           </div>
-          <div className="w-full h-32 mt-4">
+          <div className="w-full h-32 mt-4 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={donutData} innerRadius={35} outerRadius={50} paddingAngle={5} dataKey="value" stroke="none">
@@ -110,7 +110,7 @@ export const HabitDetail: React.FC<HabitDetailProps> = ({
            <div className="absolute top-3 left-4 text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
             <TrendingUp size={14} /> Growth
           </div>
-          <div className="flex-1 mt-6 w-full">
+          <div className="flex-1 mt-6 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
                 <XAxis dataKey="day" hide />

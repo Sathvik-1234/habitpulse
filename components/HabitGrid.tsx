@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Check, Trash2, ChevronRight, Plus } from 'lucide-react';
+import { Check, Trash2, ChevronRight, Plus, Clock } from 'lucide-react';
 import { useLocalContext } from '../context/LocalContext';
 import { getDailyQuests } from '../lib/system';
 
@@ -20,6 +20,23 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
 }) => {
   const { habits, logs, toggleHabit, playerStats } = useLocalContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const getTaskStatus = (habit: any) => {
+    if (!habit.dueTime) return null;
+    
+    const now = new Date();
+    const [dueHours, dueMinutes] = habit.dueTime.split(':').map(Number);
+    
+    let taskDate = new Date();
+    taskDate.setHours(dueHours, dueMinutes, 0, 0);
+
+    const diffMs = taskDate.getTime() - now.getTime();
+    const diffMins = diffMs / (1000 * 60);
+
+    if (diffMins < 0) return 'OVERDUE';
+    if (diffMins <= 60) return 'UPCOMING';
+    return 'NORMAL';
+  };
 
   // Calculate days in the month
   const year = currentDate.getFullYear();
@@ -113,16 +130,17 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
           </div>
           {allQuests.map((habit) => {
             const isSystem = habit.id.startsWith('sys-') || habit.id.startsWith('sys_');
+            const isPenalty = habit.name.includes('[SYSTEM PENALTY');
             const goal = isSystem ? habit.goal : getDynamicGoal(habit, playerStats.level);
             return (
               <div
                 key={habit.id}
-                className={`h-14 border-b border-slate-700/50 flex items-center justify-between px-4 group transition-all cursor-pointer border-l-4 ${selectedHabitId === habit.id ? 'bg-slate-700/50 border-l-primary' : 'border-l-transparent hover:bg-slate-800'}`}
+                className={`h-14 border-b border-slate-700/50 flex items-center justify-between px-4 group transition-all cursor-pointer border-l-4 ${selectedHabitId === habit.id ? (isPenalty ? 'bg-red-900/50 border-l-red-500' : 'bg-slate-700/50 border-l-primary') : 'border-l-transparent hover:bg-slate-800'} ${isPenalty && selectedHabitId !== habit.id ? 'bg-red-950/20' : ''}`}
                 onClick={() => !isSystem && onSelectHabit(habit.id)}
               >
                 <div className="flex flex-col overflow-hidden max-w-[140px]">
                   <div className="flex items-center gap-2">
-                    <span className={`truncate text-sm font-medium ${selectedHabitId === habit.id ? 'text-white' : (isSystem ? 'text-blue-400' : 'text-slate-300')}`} title={habit.name}>
+                    <span className={`truncate text-sm font-medium ${selectedHabitId === habit.id ? (isPenalty ? 'text-red-400 font-bold drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-white') : (isPenalty ? 'text-red-500 font-bold drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]' : (isSystem ? 'text-blue-400' : 'text-slate-300'))}`} title={habit.name}>
                       {isSystem ? `[SYS] ${habit.name}` : habit.name}
                     </span>
                   </div>
@@ -133,6 +151,15 @@ export const HabitGrid: React.FC<HabitGridProps> = ({
                     <span className="text-[10px] text-slate-500 truncate">
                       {goal > 1 ? `${goal} ${habit.unit || ''}` : ''}
                     </span>
+                    {habit.dueTime && (
+                      <span className={`text-[10px] flex items-center gap-0.5 ${
+                        getTaskStatus(habit) === 'OVERDUE' ? 'text-red-500 animate-pulse' :
+                        getTaskStatus(habit) === 'UPCOMING' ? 'text-yellow-500' : 'text-slate-500'
+                      }`}>
+                        <Clock size={10} />
+                        {habit.dueTime}
+                      </span>
+                    )}
                   </div>
                 </div>
                 
