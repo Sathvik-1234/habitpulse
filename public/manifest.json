@@ -1,15 +1,24 @@
 {
   "name": "HabitPulse System",
   "short_name": "HabitPulse",
+  "description": "A gamified habit tracker designed to help you level up your life.",
   "start_url": "/",
+  "id": "/?source=pwa",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "orientation": "portrait",
+  "background_color": "#050B14",
+  "theme_color": "#4D9FFF",
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
       "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
       "purpose": "any maskable"
     }
   ]
